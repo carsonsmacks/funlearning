@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Modern Chat App</title>
+    <style>
+        :root {
+            --primary-color: #4285f4;
+            --secondary-color: #f1f1f1;
+            --you-color: #d3e3fd;
+            --peer-color: #ffffff;
+            --system-color: #f8f9fa;
+            --shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Roboto', Arial, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 0;
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 20px;
+            box-shadow: var(--shadow);
+            z-index: 10;
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        
+        #usernameSection {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            max-width: 400px;
+            margin: 20px auto;
+            text-align: center;
+        }
+        
+        #usernameInput {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #3367d6;
+        }
+        
+        #chatContainer {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            background: white;
+            box-shadow: var(--shadow);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        #chat {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+        }
+        
+        .message-container {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        
+        .message-container.you {
+            justify-content: flex-end;
+        }
+        
+        .message {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+            box-shadow: var(--shadow);
+        }
+        
+        .you .message {
+            background-color: var(--you-color);
+            border-bottom-right-radius: 4px;
+            color: #333;
+        }
+        
+        .peer .message {
+            background-color: var(--peer-color);
+            border-bottom-left-radius: 4px;
+            border: 1px solid #eee;
+        }
+        
+        .system .message {
+            background-color: var(--system-color);
+            margin: 10px auto;
+            text-align: center;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: #666;
+            box-shadow: none;
+        }
+        
+        .sender-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+            font-size: 0.8rem;
+            color: #555;
+        }
+        
+        .timestamp {
+            font-size: 0.7rem;
+            color: #999;
+            text-align: right;
+            margin-top: 4px;
+        }
+        
+        #inputArea {
+            display: flex;
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #eee;
+        }
+        
+        #messageInput {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            margin-right: 10px;
+            font-size: 1rem;
+        }
+        
+        #messageInput:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        
+        /* Scrollbar styling */
+        #chat::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        #chat::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        #chat::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        
+        #chat::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 600px) {
+            #chatContainer {
+                border-radius: 0;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Carsons Local Chat</h1>
+    </header>
+
+    <div id="usernameSection">
+        <input type="text" id="usernameInput" placeholder="Enter your username">
+        <button onclick="setUsername()">Join Chat</button>
+    </div>
+
+    <div id="chatContainer">
+        <div id="chat"></div>
+        <div id="inputArea">
+            <input type="text" id="messageInput" placeholder="Type your message...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const CHAT_SERVER = `ws://${window.location.hostname}:8080/chat`;
+        const MESSAGE_HISTORY_KEY = "chatHistory";
+        
+        // DOM elements
+        const chatDiv = document.getElementById('chat');
+        const messageInput = document.getElementById('messageInput');
+        const usernameInput = document.getElementById('usernameInput');
+        let username = "";
+        
+        // Format timestamp
+        function formatTime(date) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        // Load previous messages from local storage
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem(MESSAGE_HISTORY_KEY)) || [];
+            history.forEach(msg => {
+                displayMessage(msg.sender, msg.text, msg.isYou, new Date(msg.timestamp));
+            });
+        }
+        
+        // Save message to local storage
+        function saveMessage(sender, text, isYou) {
+            const history = JSON.parse(localStorage.getItem(MESSAGE_HISTORY_KEY)) || [];
+            history.push({ 
+                sender, 
+                text, 
+                isYou, 
+                timestamp: new Date().toISOString() 
+            });
+            localStorage.setItem(MESSAGE_HISTORY_KEY, JSON.stringify(history));
+        }
+        
+        // Display a message in the chat
+        function displayMessage(sender, text, isYou, timestamp = new Date()) {
+            const messageContainer = document.createElement('div');
+            messageContainer.className = `message-container ${isYou ? 'you' : sender === 'SYSTEM' ? 'system' : 'peer'}`;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            
+            if (sender === "SYSTEM") {
+                messageDiv.textContent = text;
+            } else {
+                if (!isYou) {
+                    const nameDiv = document.createElement('div');
+                    nameDiv.className = 'sender-name';
+                    nameDiv.textContent = sender;
+                    messageDiv.appendChild(nameDiv);
+                }
+                
+                const textDiv = document.createElement('div');
+                textDiv.textContent = text;
+                messageDiv.appendChild(textDiv);
+                
+                const timeDiv = document.createElement('div');
+                timeDiv.className = 'timestamp';
+                timeDiv.textContent = formatTime(timestamp);
+                messageDiv.appendChild(timeDiv);
+            }
+            
+            messageContainer.appendChild(messageDiv);
+            chatDiv.appendChild(messageContainer);
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+        }
+        
+        // Set username and connect
+        function setUsername() {
+            username = usernameInput.value.trim();
+            if (username) {
+                document.getElementById('usernameSection').style.display = 'none';
+                document.getElementById('chatContainer').style.display = 'flex';
+                loadHistory();
+                connectToChat();
+                displayMessage("SYSTEM", `You joined as ${username}`, false);
+            }
+        }
+        
+        // WebSocket connection
+        function connectToChat() {
+            const ws = new WebSocket(CHAT_SERVER);
+            
+            ws.onopen = () => {
+                displayMessage("SYSTEM", "Connected to chat", false);
+            };
+            
+            ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if (data.sender !== username) {
+                    displayMessage(data.sender, data.message, false);
+                    saveMessage(data.sender, data.message, false);
+                }
+            };
+            
+            ws.onclose = () => {
+                displayMessage("SYSTEM", "Connection lost - refresh to reconnect", false);
+            };
+            
+            window.sendMessage = function() {
+                const message = messageInput.value.trim();
+                if (message && ws.readyState === ws.OPEN) {
+                    ws.send(JSON.stringify({
+                        sender: username,
+                        message: message
+                    }));
+                    displayMessage(username, message, true);
+                    saveMessage(username, message, true);
+                    messageInput.value = '';
+                }
+            };
+        }
+        
+        // Send on Enter key
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>
